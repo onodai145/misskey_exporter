@@ -9,7 +9,7 @@ ChatGPTに教えてもらいながらすべてをコピペででっち上げたM
 ```sh
 docker build -t misskey_exporter .
 docker run -d --name misskey_exporter \
-  -e MISSKEY_APY_KEY="YOUR_API_KEY" \
+  -e MISSKEY_API_KEY="YOUR_API_KEY" \
   -e MISSKEY_URL="https://example.com" \
   -p 9100:9100 \
   misskey_exporter
