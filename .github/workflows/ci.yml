@@ -33,3 +33,5 @@ jobs:
           fi
       - name: Test
         run: go test -race ./...
+      - name: Test scripts
+        run: bash scripts/release_test.sh

@@ -17,6 +17,7 @@ MISSKEY_URL=https://example.com MISSKEY_API_KEY=... go run .
 curl localhost:9100/metrics                         # 動作確認
 docker build -t misskey_exporter .                  # golang:1.26 → alpine のマルチステージ
 goreleaser release --snapshot --clean --skip=docker  # リリースの成果物をローカルで試す（dist/ に出る。イメージは buildx が要るので除く）
+bash scripts/release_test.sh                      # scripts/release.sh のテスト（偽の gh と一時的な git リポジトリを使う。CI でも動く）
 go get <module>@latest && go mod tidy              # 依存の更新（tidy だけだと古い版に解決される）
 ```
 
@@ -61,6 +62,6 @@ Prometheus → /metrics → exporter.Collect()
 ## Workflow
 
 - ブランチ名は `<種別>/<内容>`（例: `docs/add-claude-md`、`refactor/rewrite-exporter`）。PR は通常のマージコミットでマージする（squash しない）。
-- リリース: `main` で `git tag v<X.Y.Z> && git push origin v<X.Y.Z>`。タグは `main` の履歴にあるコミットにだけ打てる（`release.yml` が確認して、なければ公開せずに失敗する）。一度打ったタグは、ルールセット `release-tags-immutable` で付け替えも削除もできない（直すには、ルールセットを一時的に無効にする）。`release.yml` が `vet` と `test` を回してから、GoReleaser でバイナリ、チェックサム、GitHub Release、GHCR のイメージ（`<X.Y.Z>` と `latest`）を公開する。タグを打つ前に、Actions の release を `main` で手動実行すると、公開なしの snapshot ビルド（イメージのビルドまで）を試せる。プレリリースタグ（`v0.2.0-rc.1` など）は、GoReleaser のソースの読み取りでは prerelease になり `latest` も動かないが、実際には未検証なので使わない。Go は `setup-go` で 1.26 系の最新を使う（`go.mod` の `go 1.26.0` をそのまま使うと、パッチ版が古いまま固定されるため）。公開されるイメージのマニフェストには、SBOM と provenance の attestation（`unknown/unknown`）も入る。
+- リリース: `main` で `scripts/release.sh v<X.Y.Z>`（`--dry-run` で確認だけ）。`main` にいて、作業ツリーがクリーンで、`origin/main` と同じコミットで、そのコミットの CI（`test`）が成功していて、タグがまだないことを確認し、リリースノートのプレビューを見せてから、タグ名の入力を求めて注釈付きタグを打って push する。手動でタグを打つ代わりに、このスクリプトを使う。タグは `main` の履歴にあるコミットにだけ打てる（`release.yml` が確認して、なければ公開せずに失敗する）。一度打ったタグは、ルールセット `release-tags-immutable` で付け替えも削除もできない（直すには、ルールセットを一時的に無効にする）。`release.yml` が `vet` と `test` を回してから、GoReleaser でバイナリ、チェックサム、GitHub Release、GHCR のイメージ（`<X.Y.Z>` と `latest`）を公開する。タグを打つ前に、Actions の release を `main` で手動実行すると、公開なしの snapshot ビルド（イメージのビルドまで）を試せる。プレリリースタグ（`v0.2.0-rc.1` など）は、GoReleaser のソースの読み取りでは prerelease になり `latest` も動かないが、実際には未検証なので使わない。Go は `setup-go` で 1.26 系の最新を使う（`go.mod` の `go 1.26.0` をそのまま使うと、パッチ版が古いまま固定されるため）。公開されるイメージのマニフェストには、SBOM と provenance の attestation（`unknown/unknown`）も入る。
 - CI とリリースの設計は `docs/superpowers/specs/2026-10-15-ci-release-design.md`。アクションは SHA で固定しており、更新は Dependabot の PR で行う。GoReleaser 本体の版は `release.yml` の `version` で固定していて、手動で上げる。
 - 設計の経緯は `docs/superpowers/specs/2026-10-15-exporter-rewrite-design.md`、実装計画は `docs/superpowers/plans/` にある。
