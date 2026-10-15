@@ -34,7 +34,7 @@ Misskey の管理 API から取得した情報を Prometheus 形式で公開す�
 ### 3.2 非機能要件
 
 - N1: 既存との互換性は必須ではない。ただし、変える理由がないもの（環境変数名 `MISSKEY_URL` / `MISSKEY_API_KEY`、既定ポート `:9100`、`misskey_queue_length{queue,state}`、Grafana ダッシュボード）は維持する。
-- N2: 配布は当面 Docker（`golang:1.26` → `alpine`）。採用ライブラリ（`client_golang` / `prometheus/common` の現行版）が Go 1.26 を要求するため、`go.mod` の `go` ディレクティブと builder イメージを 1.24 から 1.26 に上げる。バイナリ配布は将来（任意のタイミング）で、今回は実装しないが、妨げない設計にする（cgo なし、`--version` を持つ）。
+- N2: 配布は当面 Docker（`golang:1.26` → `alpine`）。採用ライブラリの最新版（`client_golang` / `prometheus/common`）が Go 1.26 を要求し、Go 1.27 が出ている現在 1.25 以前はサポート対象外なので、`go.mod` の `go` ディレクティブと builder イメージを 1.24 から 1.26 に上げる。バイナリ配布は将来（任意のタイミング）で、今回は実装しないが、妨げない設計にする（cgo なし、`--version` を持つ）。
 - N3: 外部依存を増やしてよい。Prometheus の Exporter で標準的なライブラリを採用する（5.1 参照）。
 - N4: API キーをログやエラーメッセージに出さない。値そのものをコマンドライン引数では受け取らない（プロセス一覧に出るため）。環境変数に加えて、Docker Secrets や Kubernetes Secret のようなファイル経由でも渡せる。
 
