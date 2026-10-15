@@ -10,6 +10,8 @@ Misskey の管理 API から情報を取得し、Prometheus 形式で公開す�
 
 ### Docker
 
+リリースされたイメージは GHCR にあります（linux/amd64 と linux/arm64）。以下の例の `misskey_exporter` を `ghcr.io/onodai145/misskey_exporter:<バージョン>` に置き換えてください（例: `ghcr.io/onodai145/misskey_exporter:0.2.0`）。自分でビルドする場合は、次の `docker build` を使います。
+
 ```sh
 docker build -t misskey_exporter .
 docker run -d --name misskey_exporter \
@@ -28,6 +30,16 @@ docker run -d --name misskey_exporter \
   -v "$PWD/misskey_api_key:/run/secrets/misskey_api_key:ro" \
   -p 9100:9100 \
   misskey_exporter
+```
+
+### バイナリ
+
+[Releases](https://github.com/onodai145/misskey_exporter/releases) から、linux/amd64 と linux/arm64 の tar.gz とチェックサムファイル（`misskey_exporter_<バージョン>_checksums.txt`）をダウンロードできます。
+
+```sh
+sha256sum -c --ignore-missing misskey_exporter_<バージョン>_checksums.txt
+tar -xzf misskey_exporter_<バージョン>_linux_amd64.tar.gz
+MISSKEY_URL=https://example.com MISSKEY_API_KEY=... ./misskey_exporter
 ```
 
 ### ソースから実行

@@ -16,6 +16,7 @@ go test -race -run TestClientPostSuccess ./...      # 単一テスト
 MISSKEY_URL=https://example.com MISSKEY_API_KEY=... go run .
 curl localhost:9100/metrics                         # 動作確認
 docker build -t misskey_exporter .                  # golang:1.26 → alpine のマルチステージ
+goreleaser release --snapshot --clean --skip=docker  # リリースの成果物をローカルで試す（dist/ に出る。イメージは buildx が要るので除く）
 go get <module>@latest && go mod tidy              # 依存の更新（tidy だけだと古い版に解決される）
 ```
 
@@ -53,9 +54,13 @@ Prometheus → /metrics → exporter.Collect()
 - `httptest` のハンドラでクライアントの中断を待つテストは、先にリクエストボディを読むこと（`io.Copy(io.Discard, r.Body)`）。読まないとサーバーが切断に気づかず、`srv.Close` が待ち続けてテストが数秒止まる。
 - `testutil.CollectAndCompare` で duration は比較できない（値が不定）。`misskey_queue_length` や `misskey_scrape_collector_success` のように、メトリクス名で絞って比較する。
 - `main.go` の `run()` に自動テストはない（kingpin が `--help` / `--version` でプロセスを終了するため）。`main.go` やフラグを変えたら、`--version`、`--help`、偽の Misskey + `curl` で実バイナリを確認する。
+- Dockerfile は2つある。`Dockerfile` はローカルの `docker build .` 用（マルチステージ）、`Dockerfile.release` は GoReleaser 用（ビルド済みバイナリを `COPY` するだけ）。`EXPOSE` と `ENTRYPOINT` が重複するので、片方を変えたらもう片方も直す。
+- `--version` の出力は stderr に出る（kingpin）。`grep` や `head` に渡すときは `2>&1` を付ける。
 - コード内のコメントは英語、README は日本語。
 
 ## Workflow
 
 - ブランチ名は `<種別>/<内容>`（例: `docs/add-claude-md`、`refactor/rewrite-exporter`）。PR は通常のマージコミットでマージする（squash しない）。
+- リリース: `main` で `git tag v<X.Y.Z> && git push origin v<X.Y.Z>`。`release.yml` が `vet` と `test` を回してから、GoReleaser でバイナリ、チェックサム、GitHub Release、GHCR のイメージ（`<X.Y.Z>` と `latest`）を公開する。タグを打つ前に、Actions の release を `main` で手動実行すると、公開なしの snapshot ビルド（イメージのビルドまで）を試せる。プレリリースタグ（`v0.2.0-rc.1` など）は、GoReleaser のソースの読み取りでは prerelease になり `latest` も動かないが、実際には未検証なので使わない。Go は `setup-go` で 1.26 系の最新を使う（`go.mod` の `go 1.26.0` をそのまま使うと、パッチ版が古いまま固定されるため）。公開されるイメージのマニフェストには、SBOM と provenance の attestation（`unknown/unknown`）も入る。
+- CI とリリースの設計は `docs/superpowers/specs/2026-10-15-ci-release-design.md`。アクションは SHA で固定しており、更新は Dependabot の PR で行う。GoReleaser 本体の版は `release.yml` の `version` で固定していて、手動で上げる。
 - 設計の経緯は `docs/superpowers/specs/2026-10-15-exporter-rewrite-design.md`、実装計画は `docs/superpowers/plans/` にある。
