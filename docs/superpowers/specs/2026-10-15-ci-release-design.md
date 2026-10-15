@@ -27,7 +27,7 @@
 - F1: PR と `main` への push で `go vet ./...`、`gofmt` の差分チェック、`go test -race ./...` を実行する。
 - F2: `v*` タグの push で、次の成果物を作って公開する。
   - linux/amd64 と linux/arm64 の tar.gz。
-  - `checksums.txt`（sha256）。
+  - チェックサムファイル `misskey_exporter_<version>_checksums.txt`（sha256）。
   - `ghcr.io/onodai145/misskey_exporter` のマルチアーキテクチャイメージ（linux/amd64、linux/arm64）。
   - GitHub Release（リリースノートは PR タイトルから自動生成）。
 - F3: リリースの前に `go vet` と `go test -race` をもう一度実行し、失敗したら何も公開しない。
@@ -130,10 +130,10 @@ ENTRYPOINT ["/misskey_exporter"]
 
 実装後、次を確認する。
 
-1. ローカル: `goreleaser` を用意できれば、`goreleaser release --snapshot --clean` のうちイメージを除く部分（アーカイブの中身、`checksums.txt`、バイナリの `--version`）を確認する。ローカルに `docker buildx` がないので、イメージのビルドはローカルでは確認できない。
-2. CI: `workflow_dispatch` の snapshot ビルドで、イメージのビルド（amd64 と arm64）まで通ることを確認する。
+1. ローカル: `goreleaser` を用意できれば、`goreleaser release --snapshot --clean --skip=publish` で、アーカイブの中身、チェックサムファイル、バイナリの `--version` を確認する。イメージは公開フェーズで作られるので、この実行には含まれない。ローカルに `docker buildx` もないので、イメージのビルドはローカルでは確認できない。
+2. CI: `workflow_dispatch` の snapshot ビルドで、イメージのビルド（amd64 と arm64）まで通ることを確認する。`workflow_dispatch` は、ワークフローがデフォルトブランチにないと起動できないと理解しているので、`main` へのマージ後に実行する（実際に動かして確認する）。
 3. 本番: `main` にマージしたあと、`v0.2.0` を打って次を確認する。
-   - Release に tar.gz 2つと `checksums.txt` があること。
+   - Release に tar.gz 2つとチェックサムファイルがあること。
    - GHCR にイメージがあり、`docker run --rm ghcr.io/onodai145/misskey_exporter:0.2.0 --version` が `0.2.0` を表示すること。
    - GHCR のパッケージが public であること（最初の push では private になる場合があり、その場合は初回だけ GitHub 上で public にする手作業が要る）。
 
