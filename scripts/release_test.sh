@@ -52,9 +52,9 @@ other_clone() {
   git -C "$TMP/other" config tag.gpgsign false
 }
 
-# run_release [args...]: sets out and rc. INPUT is what the user types.
+# run_release [args...]: sets out and rc. stdin is closed: the script must not prompt.
 run_release() {
-  out=$(PATH="$TMP/bin:$PATH" bash "$SCRIPT" "$@" 2>&1 <<<"${INPUT:-}")
+  out=$(PATH="$TMP/bin:$PATH" bash "$SCRIPT" "$@" 2>&1 </dev/null)
   rc=$?
 }
 
@@ -82,32 +82,32 @@ expect_refusal() { # expect_refusal <name> <expected text in output> [args...]
 }
 
 # --- version format
-setup; INPUT=""
+setup
 expect_refusal "rejects a version without v" "vX.Y.Z" 1.0.0
 expect_refusal "rejects a two-part version" "vX.Y.Z" v1.0
 expect_refusal "rejects a prerelease version" "vX.Y.Z" v1.0.0-rc.1
 
 # --- repository state
-setup; INPUT=""
+setup
 git checkout -q -b side
 expect_refusal "rejects a branch other than main" "main" v1.0.0
 
-setup; INPUT=""
+setup
 echo x >> a
 expect_refusal "rejects uncommitted changes" "clean" v1.0.0
 
-setup; INPUT=""
+setup
 other_clone
 echo b > "$TMP/other/b"; git -C "$TMP/other" add b; git -C "$TMP/other" commit -q -m ahead; git -C "$TMP/other" push -q origin HEAD:main
 expect_refusal "rejects a main that is behind origin/main" "origin/main" v1.0.0
 
-setup; INPUT=""
+setup
 git tag v1.0.0
 run_release v1.0.0
 [ "$rc" -ne 0 ] && grep -q "already exists" <<<"$out" && [ -z "$(git ls-remote --tags "$TMP/origin.git")" ]
 check "rejects a tag that exists locally" $?
 
-setup; INPUT=""
+setup
 other_clone
 git -C "$TMP/other" tag v1.0.0; git -C "$TMP/other" push -q origin v1.0.0
 run_release v1.0.0
@@ -115,25 +115,18 @@ run_release v1.0.0
 check "rejects a tag that exists only on origin" $?
 
 # --- CI status
-setup; INPUT=""
+setup
 FAKE_CI=failure expect_refusal "rejects a commit whose CI failed" "CI" v1.0.0
 FAKE_CI=none expect_refusal "rejects a commit with no CI result" "CI" v1.0.0
 
-# --- confirmation
-setup; INPUT="v1.0.1"
-expect_refusal "aborts when the typed tag does not match" "Aborted" v1.0.0
-
-setup; INPUT=""
-expect_refusal "aborts when nothing is typed" "Aborted" v1.0.0
-
 # --- dry run
-setup; INPUT=""
+setup
 run_release v1.0.0 --dry-run
-[ "$rc" -eq 0 ] && grep -q "fake release notes" <<<"$out" && grep -q "dry run" <<<"$out" && no_tag_anywhere
-check "dry run shows the release notes and creates nothing" $?
+[ "$rc" -eq 0 ] && grep -q "fake release notes" <<<"$out" && grep -q "dry run" <<<"$out" && grep -q -- "without --dry-run" <<<"$out" && no_tag_anywhere
+check "dry run shows the release notes, says how to publish and creates nothing" $?
 
 # --- success
-setup; INPUT="v1.0.0"
+setup
 run_release v1.0.0
 head=$(git rev-parse HEAD)
 [ "$rc" -eq 0 ] \
