@@ -2,6 +2,11 @@ version: 2
 
 project_name: misskey_exporter
 
+before:
+  hooks:
+    # Collect the licenses of the dependencies; the archives and the image ship them.
+    - scripts/licenses.sh save licenses
+
 builds:
   - id: misskey_exporter
     main: .
@@ -29,6 +34,10 @@ archives:
     formats:
       - tar.gz
     name_template: "misskey_exporter_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - licenses/**
 
 # Release notes come from the merged pull requests, not from the commit list,
 # because pull requests are merged with merge commits.
@@ -49,6 +58,8 @@ dockers_v2:
       - "{{ .Version }}"
       - "{{ if not .Prerelease }}latest{{ end }}"
     dockerfile: Dockerfile.release
+    extra_files:
+      - licenses
     platforms:
       - linux/amd64
       - linux/arm64

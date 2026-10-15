@@ -18,6 +18,8 @@ curl localhost:9100/metrics                         # 動作確認
 docker build -t misskey_exporter .                  # golang:1.26 → alpine のマルチステージ
 goreleaser release --snapshot --clean --skip=docker  # リリースの成果物をローカルで試す（dist/ に出る。イメージは buildx が要るので除く）
 bash scripts/release_test.sh                      # scripts/release.sh のテスト（偽の gh と一時的な git リポジトリを使う。CI でも動く）
+bash scripts/licenses_test.sh                     # scripts/licenses.sh のテスト（偽の go と go-licenses を使う。CI でも動く）
+scripts/licenses.sh check                         # 依存のライセンスが許可リストの範囲か（要 go-licenses: go install github.com/google/go-licenses/v2@v2.0.1）
 go get <module>@latest && go mod tidy              # 依存の更新（tidy だけだと古い版に解決される）
 ```
 
@@ -55,6 +57,7 @@ Prometheus → /metrics → exporter.Collect()
 - `httptest` のハンドラでクライアントの中断を待つテストは、先にリクエストボディを読むこと（`io.Copy(io.Discard, r.Body)`）。読まないとサーバーが切断に気づかず、`srv.Close` が待ち続けてテストが数秒止まる。
 - `testutil.CollectAndCompare` で duration は比較できない（値が不定）。`misskey_queue_length` や `misskey_scrape_collector_success` のように、メトリクス名で絞って比較する。
 - `main.go` の `run()` に自動テストはない（kingpin が `--help` / `--version` でプロセスを終了するため）。`main.go` やフラグを変えたら、`--version`、`--help`、偽の Misskey + `curl` で実バイナリを確認する。
+- 配布する依存のライセンスは、リリース時に `scripts/licenses.sh save licenses` が生成し（GoReleaser の `before.hooks`）、アーカイブの `licenses/` とイメージの `/licenses/` に入る。`licenses/` はコミットしない。許可するライセンスの種類（`MIT`、`Apache-2.0`、`BSD-3-Clause`）は `scripts/licenses.sh` の `ALLOWED` の1か所だけにあり、新しい種類の依存が入ると CI が落ちる。許可するときは `ALLOWED` に足す。`go-licenses` の版（`v2.0.1`）は `ci.yml` と `release.yml` の `go install` で固定していて、手動で上げる。Go 標準ライブラリのライセンスは `$(go env GOROOT)/LICENSE` から取るので、ディストリのパッケージの Go など、そのファイルがない環境では `save` が失敗する。
 - Dockerfile は2つある。`Dockerfile` はローカルの `docker build .` 用（マルチステージ）、`Dockerfile.release` は GoReleaser 用（ビルド済みバイナリを `COPY` するだけ）。`EXPOSE` と `ENTRYPOINT` が重複するので、片方を変えたらもう片方も直す。
 - `--version` の出力は stderr に出る（kingpin）。`grep` や `head` に渡すときは `2>&1` を付ける。
 - コード内のコメントは英語、README は日本語。
