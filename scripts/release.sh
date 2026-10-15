@@ -4,6 +4,9 @@
 # release. Release tags cannot be moved or deleted afterwards (see the
 # release-tags-immutable ruleset), so every check happens before the tag exists.
 #
+# There is no confirmation prompt: run it with --dry-run first to see the
+# commit and the release notes, then run it again without --dry-run.
+#
 # Usage: scripts/release.sh vX.Y.Z [--dry-run]
 set -euo pipefail
 
@@ -56,14 +59,11 @@ gh api -X POST "repos/$repo/releases/generate-notes" -f tag_name="$tag" -f targe
 echo
 
 if $dry_run; then
-  echo "dry run: no tag was created"
+  echo "dry run: no tag was created. Run it again without --dry-run to publish $tag."
   exit 0
 fi
 
-echo "A release tag cannot be moved or deleted once it is pushed."
-read -r -p "Type $tag to create and push it: " answer || answer=""
-[ "$answer" = "$tag" ] || die "Aborted: the typed text does not match $tag"
-
+echo "Creating and pushing $tag (a release tag cannot be moved or deleted afterwards)"
 git tag -a "$tag" -m "Release $tag" "$sha"
 if ! git push origin "refs/tags/$tag"; then
   git tag -d "$tag" >/dev/null
