@@ -61,4 +61,6 @@ Prometheus → /metrics → exporter.Collect()
 ## Workflow
 
 - ブランチ名は `<種別>/<内容>`（例: `docs/add-claude-md`、`refactor/rewrite-exporter`）。PR は通常のマージコミットでマージする（squash しない）。
+- リリース: `main` で `git tag v<X.Y.Z> && git push origin v<X.Y.Z>`。`release.yml` が `vet` と `test` を回してから、GoReleaser でバイナリ、チェックサム、GitHub Release、GHCR のイメージ（`<X.Y.Z>` と `latest`）を公開する。タグを打つ前に、Actions の release を `main` で手動実行すると、公開なしの snapshot ビルド（イメージのビルドまで）を試せる。プレリリースタグ（`v0.2.0-rc.1` など）の扱いは未検証。
+- CI とリリースの設計は `docs/superpowers/specs/2026-10-15-ci-release-design.md`。アクションは SHA で固定しており、更新は Dependabot の PR で行う。GoReleaser 本体の版は `release.yml` の `version` で固定していて、手動で上げる。
 - 設計の経緯は `docs/superpowers/specs/2026-10-15-exporter-rewrite-design.md`、実装計画は `docs/superpowers/plans/` にある。
