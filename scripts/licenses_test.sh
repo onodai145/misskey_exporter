@@ -23,7 +23,10 @@ cat > "$BIN/go" <<'EOF'
 case "$*" in
   "env GOROOT") echo "$FAKE_GOROOT" ;;
   "env GOPATH") echo "$FAKE_GOPATH" ;;
-  "list -m") echo "example.com/mod" ;;
+  "list -m")
+    # Under a go.work file there are several modules, unless GOWORK=off.
+    if [ "${GOWORK:-}" = off ]; then echo "example.com/mod"; else printf "example.com/mod\nexample.com/other\n"; fi
+    ;;
   *) echo "fake go: unexpected arguments: $*" >&2; exit 99 ;;
 esac
 EOF
@@ -55,6 +58,8 @@ setup() {
   echo "repo license" > "$TMP/repo/LICENSE"
   echo "go license" > "$TMP/goroot/LICENSE"
   : > "$TMP/log"
+  git -C "$TMP/repo" init -q
+  git -C "$TMP/repo" add LICENSE scripts/licenses.sh
 }
 
 # run_licenses [args...]: sets out and rc. go-licenses is found on PATH. The
@@ -125,6 +130,26 @@ out=$(cd "$TMP/repo" && env PATH="$TMP/nogl:$SYSPATH" FAKE_GOROOT="$TMP/goroot" 
 rc=$?
 [ "$rc" -eq 0 ] && grep -q "^check " "$TMP/log"
 result "finds go-licenses in GOPATH/bin when it is not on PATH" $?
+
+# --- refused output directories
+for bad in "" "." ".." "../out" "out/../.." "/tmp/licenses-test-out"; do
+  setup
+  run_licenses save "$bad"
+  [ "$rc" -ne 0 ] && grep -q "refusing" <<<"$out" && [ ! -s "$TMP/log" ] && [ -f "$TMP/repo/LICENSE" ]
+  result "save refuses the output directory '$bad', before touching anything" $?
+done
+
+setup
+run_licenses save scripts
+[ "$rc" -ne 0 ] && grep -q "tracked" <<<"$out" && [ ! -s "$TMP/log" ] && [ -f "$TMP/repo/scripts/licenses.sh" ]
+result "save refuses a directory with files tracked by git and keeps them" $?
+
+setup
+mkdir -p "$TMP/repo/out/sub"
+echo stale > "$TMP/repo/out/sub/stale"
+run_licenses save out/
+[ "$rc" -eq 0 ] && [ ! -e "$TMP/repo/out/sub/stale" ] && [ -f "$TMP/repo/out/go/LICENSE" ]
+result "save accepts an untracked relative directory, also with a trailing slash" $?
 
 # --- working directory
 setup

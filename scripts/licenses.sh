@@ -37,8 +37,9 @@ esac
 command -v go-licenses >/dev/null 2>&1 || PATH="$(go env GOPATH)/bin:$PATH"
 command -v go-licenses >/dev/null 2>&1 || die "go-licenses not found; run: go install github.com/google/go-licenses/v2@v2.0.1"
 
-# The module itself is not a dependency.
-module=$(go list -m)
+# The module itself is not a dependency. GOWORK=off: under a go.work file,
+# go list -m prints every module of the workspace.
+module=$(GOWORK=off go list -m)
 
 case "$1" in
   check)
@@ -46,6 +47,18 @@ case "$1" in
     ;;
   save)
     dir=$2
+    # save deletes <dir> first, so refuse anything that could hold more than
+    # generated files: an empty or absolute path, "." or "..", and a directory
+    # with files tracked by git (for example "scripts").
+    case "$dir" in
+      "" | /* | . | .. | ../* | */.. | */../*)
+        die "refusing to use '$dir' as the output directory: use a relative path inside the repository"
+        ;;
+    esac
+    # Not being in a git repository (a source archive) is fine: nothing is tracked.
+    if [ -n "$(git ls-files -- "$dir" 2>/dev/null)" ]; then
+      die "refusing to use '$dir' as the output directory: it contains files tracked by git"
+    fi
     # go-licenses skips the Go standard library, whose license must be shipped too.
     go_license="$(go env GOROOT)/LICENSE"
     [ -f "$go_license" ] || die "the Go license was not found: $go_license"

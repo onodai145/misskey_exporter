@@ -60,11 +60,12 @@
 
 ## 5. スクリプト（`scripts/licenses.sh`）
 
-bash。`set -euo pipefail`。どこから起動されても、リポジトリのルート（スクリプトの1つ上）に移動してから動く（`./...`、`LICENSE`、`<dir>` はルートからの相対。サブディレクトリから起動すると、`go-licenses` が何も検査せずに成功してしまうため）。`go-licenses` が PATH にないときは、`$(go env GOPATH)/bin` を PATH に足す。
+bash。`set -euo pipefail`。どこから起動されても、リポジトリのルート（スクリプトの1つ上）に移動してから動く（`./...`、`LICENSE`、`<dir>` はルートからの相対。サブディレクトリから起動すると、`go-licenses` が何も検査せずに成功してしまうため）。`go list -m` は `GOWORK=off` で実行する（`go.work` があると、ワークスペースの全モジュールが返るため）。`go-licenses` が PATH にないときは、`$(go env GOPATH)/bin` を PATH に足す。
 
 - `scripts/licenses.sh check`:
   `go-licenses check ./... --ignore misskey_exporter --allowed_licenses=MIT,Apache-2.0,BSD-3-Clause` を実行する。許可していない種類があれば、`go-licenses` の終了コードのまま失敗する。
 - `scripts/licenses.sh save <dir>`:
+  0. `<dir>` を検証する。空、絶対パス、`.`、`..` を含むパス、git が追跡しているファイルを含むフォルダは、何も触らずに拒否する（次の手順で削除するため）。git のリポジトリでないとき（ソースのアーカイブ）は、追跡の確認を省く。
   1. `<dir>` を削除する（古いファイルを残さない）。
   2. `go-licenses save ./... --ignore misskey_exporter --save_path=<dir>` を実行する。
   3. `$(go env GOROOT)/LICENSE` を `<dir>/go/LICENSE` にコピーする。ファイルがなければ、エラーで失敗する。
