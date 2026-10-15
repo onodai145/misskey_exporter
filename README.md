@@ -116,3 +116,7 @@ go test -race ./...
 ```
 
 構成と、メトリクスを追加する手順は [CLAUDE.md](CLAUDE.md) に書いてあります。
+
+## ライセンス
+
+[MIT License](LICENSE)
