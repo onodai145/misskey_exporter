@@ -16,6 +16,7 @@ go test -race -run TestClientPostSuccess ./...      # 単一テスト
 MISSKEY_URL=https://example.com MISSKEY_API_KEY=... go run .
 curl localhost:9100/metrics                         # 動作確認
 docker build -t misskey_exporter .                  # golang:1.26 → alpine のマルチステージ
+goreleaser release --snapshot --clean --skip=docker  # リリースの成果物をローカルで試す（dist/ に出る。イメージは buildx が要るので除く）
 go get <module>@latest && go mod tidy              # 依存の更新（tidy だけだと古い版に解決される）
 ```
 
@@ -53,6 +54,8 @@ Prometheus → /metrics → exporter.Collect()
 - `httptest` のハンドラでクライアントの中断を待つテストは、先にリクエストボディを読むこと（`io.Copy(io.Discard, r.Body)`）。読まないとサーバーが切断に気づかず、`srv.Close` が待ち続けてテストが数秒止まる。
 - `testutil.CollectAndCompare` で duration は比較できない（値が不定）。`misskey_queue_length` や `misskey_scrape_collector_success` のように、メトリクス名で絞って比較する。
 - `main.go` の `run()` に自動テストはない（kingpin が `--help` / `--version` でプロセスを終了するため）。`main.go` やフラグを変えたら、`--version`、`--help`、偽の Misskey + `curl` で実バイナリを確認する。
+- Dockerfile は2つある。`Dockerfile` はローカルの `docker build .` 用（マルチステージ）、`Dockerfile.release` は GoReleaser 用（ビルド済みバイナリを `COPY` するだけ）。`EXPOSE` と `ENTRYPOINT` が重複するので、片方を変えたらもう片方も直す。
+- `--version` の出力は stderr に出る（kingpin）。`grep` や `head` に渡すときは `2>&1` を付ける。
 - コード内のコメントは英語、README は日本語。
 
 ## Workflow

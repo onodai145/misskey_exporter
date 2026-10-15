@@ -1,0 +1,51 @@
+version: 2
+
+project_name: misskey_exporter
+
+builds:
+  - id: misskey_exporter
+    main: .
+    binary: misskey_exporter
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    # Replace the default ldflags: they only set main.* variables, but the
+    # version shown by --version, the logs and the User-Agent lives in
+    # prometheus/common/version.
+    ldflags:
+      - -s -w
+      - -X github.com/prometheus/common/version.Version={{ .Version }}
+      - -X github.com/prometheus/common/version.Revision={{ .FullCommit }}
+      - -X github.com/prometheus/common/version.BuildDate={{ .Date }}
+
+archives:
+  - id: misskey_exporter
+    formats:
+      - tar.gz
+    name_template: "misskey_exporter_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+# Release notes come from the merged pull requests, not from the commit list,
+# because pull requests are merged with merge commits.
+changelog:
+  use: github-native
+
+dockers_v2:
+  - id: misskey_exporter
+    images:
+      - ghcr.io/onodai145/misskey_exporter
+    # {{ .Version }} has no leading "v", unlike the default {{ .Tag }}.
+    tags:
+      - "{{ .Version }}"
+      - latest
+    dockerfile: Dockerfile.release
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      org.opencontainers.image.source: "https://github.com/onodai145/misskey_exporter"

@@ -1,0 +1,8 @@
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates
+ARG TARGETPLATFORM
+COPY $TARGETPLATFORM/misskey_exporter /misskey_exporter
+
+EXPOSE 9100
+
+ENTRYPOINT ["/misskey_exporter"]
