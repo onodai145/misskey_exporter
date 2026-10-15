@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/prometheus/common/version"
 )
 
 const (
@@ -37,6 +39,17 @@ func newClient(baseURL, apiKey string) *client {
 	}
 }
 
+// userAgent identifies this exporter to the Misskey server, for example
+// "misskey_exporter/1.2.3". The version is empty unless it was set at build
+// time with -ldflags, so fall back to "unknown" rather than send a trailing "/".
+func userAgent() string {
+	v := version.Version
+	if v == "" {
+		v = "unknown"
+	}
+	return programName + "/" + v
+}
+
 // Post sends an empty JSON object to path (for example "/api/admin/queue/stats")
 // and decodes the JSON response into out. Errors never contain the API key.
 func (c *client) Post(ctx context.Context, path string, out any) error {
@@ -46,6 +59,7 @@ func (c *client) Post(ctx context.Context, path string, out any) error {
 	}
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", userAgent())
 
 	resp, err := c.http.Do(req)
 	if err != nil {
