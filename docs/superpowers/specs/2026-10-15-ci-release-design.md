@@ -130,7 +130,7 @@ ENTRYPOINT ["/misskey_exporter"]
 
 実装後、次を確認する。
 
-1. ローカル: `goreleaser` を用意できれば、`goreleaser release --snapshot --clean --skip=publish` で、アーカイブの中身、チェックサムファイル、バイナリの `--version` を確認する。イメージは公開フェーズで作られるので、この実行には含まれない。ローカルに `docker buildx` もないので、イメージのビルドはローカルでは確認できない。
+1. ローカル: `goreleaser` を用意できれば、`goreleaser release --snapshot --clean --skip=docker` で、アーカイブの中身、チェックサムファイル、バイナリの `--version` を確認する。snapshot でもイメージのビルドは走るが、ローカルに `docker buildx` がないので、`--skip=docker` で除く。イメージのビルドはローカルでは確認できない。
 2. CI: `workflow_dispatch` の snapshot ビルドで、イメージのビルド（amd64 と arm64）まで通ることを確認する。`workflow_dispatch` は、ワークフローがデフォルトブランチにないと起動できないと理解しているので、`main` へのマージ後に実行する（実際に動かして確認する）。
 3. 本番: `main` にマージしたあと、`v0.2.0` を打って次を確認する。
    - Release に tar.gz 2つとチェックサムファイルがあること。

@@ -286,10 +286,10 @@ Expected: 設定が検証されて `exit=0`。
 
 - [ ] **Step 6: snapshot ビルドをローカルで実行する（公開とイメージは除く）**
 
-イメージは公開フェーズで作られるので、`--skip=publish` で除かれる。
+snapshot モードでも、`--skip=publish`（`--snapshot` が暗黙に含む）ではイメージのビルドが走る。ローカルには buildx がないので、`--skip=docker` でイメージを除く。
 
 ```sh
-"$(go env GOPATH)/bin/goreleaser" release --snapshot --clean --skip=publish; echo "exit=$?"
+"$(go env GOPATH)/bin/goreleaser" release --snapshot --clean --skip=docker; echo "exit=$?"
 ```
 
 Expected: `exit=0`。`dist/` に、linux/amd64 と linux/arm64 のバイナリ、2つの tar.gz、チェックサムファイルができる。
@@ -304,8 +304,8 @@ V=$(python3 -I -c 'import json;print(json.load(open("dist/metadata.json"))["vers
 echo "metadata version: $V"
 AMD=$(find dist -type f -name misskey_exporter -path '*linux_amd64*')
 ARM=$(find dist -type f -name misskey_exporter -path '*linux_arm64*')
-"$AMD" --version | head -1
-"$AMD" --version | grep -c "revision: $(git rev-parse HEAD)"
+"$AMD" --version 2>&1 | head -1
+"$AMD" --version 2>&1 | grep -c "revision: $(git rev-parse HEAD)"
 go version -m "$ARM" | grep -E 'GOARCH|-trimpath'
 (cd dist && sha256sum -c ./*_checksums.txt)
 tar -tzf dist/misskey_exporter_*_linux_amd64.tar.gz
@@ -326,7 +326,7 @@ CTX=$(mktemp -d)
 mkdir -p "$CTX/linux/amd64"
 cp "$(find dist -type f -name misskey_exporter -path '*linux_amd64*')" "$CTX/linux/amd64/misskey_exporter"
 docker build --build-arg TARGETPLATFORM=linux/amd64 -f Dockerfile.release -t misskey_exporter:release-check "$CTX"
-docker run --rm misskey_exporter:release-check --version | head -1
+docker run --rm misskey_exporter:release-check --version 2>&1 | head -1
 docker rmi misskey_exporter:release-check
 rm -rf "$CTX"
 ```
@@ -338,7 +338,7 @@ Expected: ビルドが成功し、`--version` が Step 7 と同じバージョ�
 `CLAUDE.md` の Commands のコードブロックで、`docker build -t misskey_exporter .` の行の下に1行足す。
 
 ```
-goreleaser release --snapshot --clean --skip=publish  # リリースの成果物をローカルで試す（dist/ に出る。公開とイメージは除く）
+goreleaser release --snapshot --clean --skip=docker  # リリースの成果物をローカルで試す（dist/ に出る。イメージは buildx が要るので除く）
 ```
 
 Gotchas の末尾（`コード内のコメントは英語、README は日本語。` の行の前）に1項目足す。
@@ -568,7 +568,7 @@ Expected: 成功する。
 ```sh
 gh release view v0.2.0 --json assets,isPrerelease -q '.assets[].name, .isPrerelease'
 docker pull ghcr.io/onodai145/misskey_exporter:0.2.0
-docker run --rm ghcr.io/onodai145/misskey_exporter:0.2.0 --version | head -1
+docker run --rm ghcr.io/onodai145/misskey_exporter:0.2.0 --version 2>&1 | head -1
 docker manifest inspect ghcr.io/onodai145/misskey_exporter:0.2.0 | grep -E '"architecture"'
 ```
 
