@@ -31,6 +31,7 @@
   - `ghcr.io/onodai145/misskey_exporter` のマルチアーキテクチャイメージ（linux/amd64、linux/arm64）。
   - GitHub Release（リリースノートは PR タイトルから自動生成）。
 - F3: リリースの前に `go vet` と `go test -race` をもう一度実行し、失敗したら何も公開しない。
+- F3b: タグを打ったコミットが `main` の履歴にないときは、何も公開せずに失敗する（`workflow_dispatch` の snapshot は対象外）。
 - F4: タグ `v0.2.0` から、アーカイブ名、イメージタグ、`--version`、User-Agent のすべてが `0.2.0` になる。
 - F5: 手動実行（`workflow_dispatch`）で、タグなし・公開なしの snapshot ビルドを CI 上で回せる。本番のタグを打つ前に、イメージのビルドまで確認するため。
 
@@ -76,11 +77,24 @@
 - 権限: `contents: write`、`packages: write`。
 - 手順:
   1. `fetch-depth: 0` で checkout（GoReleaser がタグと履歴を必要とする）。
+  1b. タグの push のときだけ、`git fetch origin main` のあと、`git merge-base --is-ancestor "$GITHUB_SHA" origin/main` で、タグのコミットが `main` の履歴にあることを確認する。なければ失敗する。後続の `release-tags-immutable` で、失敗したタグを付け替えられないので、`origin/main` を明示的に取得して、確認自体の失敗を避ける。
   2. `setup-go`（`go-version: "1.26"`、`check-latest: true`、`cache: false`）。`go.mod` は `go 1.26.0` と、パッチ版まで指定している。`go-version-file` を使うと、その `1.26.0` がそのまま入り、標準ライブラリのセキュリティ修正が入らない（setup-go の公式ドキュメントによる）。そこで、1.26 系の最新を使う。公開用のジョブでは、キャッシュを復元しない。
   3. `go vet ./...` と `go test -race ./...`。
   4. QEMU と buildx の用意。`Dockerfile.release` の `RUN apk add` が arm64 側で実行されるため、エミュレーションが要る。
   5. `GITHUB_TOKEN` で GHCR にログイン。
   6. GoReleaser の実行。タグの push なら `release --clean`、`workflow_dispatch` なら `release --clean --snapshot`（公開しない）。
+
+### 5.3 リポジトリの設定（git には入らない）
+
+GitHub の Rulesets に、次の3つを設定する。
+
+| 名前 | 対象 | 内容 |
+|---|---|---|
+| `main-protection` | `main` | 削除の禁止、PR 必須、必須のステータスチェック `test`（`ci.yml` のジョブ名） |
+| `main-no-force-push` | `main` | force push の禁止（リポジトリの所有者だけ bypass 可） |
+| `release-tags-immutable` | タグ `v*` | 更新と削除の禁止（bypass なし） |
+
+`release-tags-immutable` により、一度打ったタグは、付け替えも削除もできない。公開物とタグの対応を固定するための設定。打ち間違えたら、ルールセットを一時的に無効にして直す。
 
 ## 6. GoReleaser の設定（`.goreleaser.yaml`）
 
