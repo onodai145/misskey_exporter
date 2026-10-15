@@ -34,7 +34,8 @@ Prometheus → /metrics → exporter.Collect()
 
 - `main.go`: 設定読み込み、`collectors` の登録、HTTP サーバー（exporter-toolkit の `web.ListenAndServe`）、SIGTERM/SIGINT での graceful shutdown。
 - `config.go`: kingpin によるフラグ + 環境変数の解釈と検証。アクセストークンは `MISSKEY_API_KEY` かファイル（`--misskey.api-key-file`）で渡し、値そのものをフラグでは受け取らない。検証エラーは `errors.Join` でまとめて返す。
-- `client.go`: Misskey API クライアント。自前のタイムアウトは持たず、呼び出し側の context で止める。エラーにトークンを含めない。リダイレクトは追従しない（POST が GET に変わるため）。User-Agent は `misskey_exporter/<version>`。`version.Version` は ldflags で埋め込まない限り空なので（現状の `Dockerfile` も埋め込まない）、そのときは `unknown` になる。
+- `client.go`: Misskey API クライアント。自前のタイムアウトは持たず、呼び出し側の context で止める。エラーにトークンを含めない。リダイレクトは追従しない（POST が GET に変わるため）。User-Agent は `misskey_exporter/<version>`（バージョンが取れないときは `unknown`）。
+- `version.go`: `version.Version`（`--version`、起動ログ、User-Agent で使う）を、ldflags が空のとき Go が git タグから記録するモジュールバージョンで埋める。タグ付きコミットなら `0.2.0`、タグなしなら `0.0.0-<日時>-<コミット>` になる。`.git` を含まないソースからビルドすると取れず `unknown` になる。
 - `exporter.go`: `collector` interface と、全 collector を束ねる `prometheus.Collector`。collector の panic は error に変換される（goroutine 上の panic でプロセスが落ちるのを防ぐ）。
 - `collector_queue.go`: `/api/admin/queue/stats` を `misskey_queue_length{queue,state}` にする。
 
