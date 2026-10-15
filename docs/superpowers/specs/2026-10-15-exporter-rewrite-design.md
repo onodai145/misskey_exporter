@@ -1,7 +1,7 @@
 # misskey_exporter リライト 設計仕様
 
 日付: 2026-10-15
-ステータス: レビュー待ち（非機能要件を改訂: 互換性は必須でない、外部依存は増やしてよい、配布は当面 Docker）
+ステータス: 承認済み（実装計画の作成中に、Go 1.26 の要求など実装上の詳細を追記）
 
 ## 1. 目的
 
@@ -34,7 +34,7 @@ Misskey の管理 API から取得した情報を Prometheus 形式で公開す�
 ### 3.2 非機能要件
 
 - N1: 既存との互換性は必須ではない。ただし、変える理由がないもの（環境変数名 `MISSKEY_URL` / `MISSKEY_API_KEY`、既定ポート `:9100`、`misskey_queue_length{queue,state}`、Grafana ダッシュボード）は維持する。
-- N2: 配布は当面 Docker（`golang:1.24` → `alpine`）。バイナリ配布は将来（任意のタイミング）で、今回は実装しないが、妨げない設計にする（cgo なし、`--version` を持つ）。
+- N2: 配布は当面 Docker（`golang:1.26` → `alpine`）。採用ライブラリ（`client_golang` / `prometheus/common` の現行版）が Go 1.26 を要求するため、`go.mod` の `go` ディレクティブと builder イメージを 1.24 から 1.26 に上げる。バイナリ配布は将来（任意のタイミング）で、今回は実装しないが、妨げない設計にする（cgo なし、`--version` を持つ）。
 - N3: 外部依存を増やしてよい。Prometheus の Exporter で標準的なライブラリを採用する（5.1 参照）。
 - N4: API キーをログやエラーメッセージに出さない。値そのものをコマンドライン引数では受け取らない（プロセス一覧に出るため）。環境変数に加えて、Docker Secrets や Kubernetes Secret のようなファイル経由でも渡せる。
 
@@ -103,7 +103,8 @@ Prometheus の Exporter で標準的なスタックを使う。
 | ログ | `--log.level`, `--log.format` | 任意 | `info`, `logfmt` | promslog のフラグ |
 | バージョン | `--version` | 任意 | なし | |
 
-- 起動時に検証し、問題を報告して終了コード 1 で終了する。必須フラグの欠落は kingpin が報告し、API キーの欠落、不正な URL、`--misskey.timeout` が 0 以下の場合は検証処理がエラーにする。
+- 起動時に検証し、問題を報告して終了コード 1 で終了する。必須フラグの欠落は kingpin が報告し、API キーの欠落、不正な URL、`--misskey.timeout` が 0 以下の場合は検証処理がエラーにする。検証で見つかった問題は、最初の1件で止めずにまとめて報告する。
+- `--misskey.url` は、スキームが `http` / `https` で、ホストがあり、認証情報（`user:pass@`）を含まない URL だけを受け付ける。パスは許可する（サブパス配下のリバースプロキシ向け）。
 - API キーの解決規則:
   - `MISSKEY_API_KEY` と API キーファイルの両方が指定された場合は、曖昧さを避けるためエラーにする（優先順位は設けない）。
   - どちらも指定されなかった場合もエラーにする。
@@ -121,7 +122,8 @@ Prometheus の Exporter で標準的なスタックを使う。
 ### 5.3 queue collector
 
 - レスポンスを `map[string]map[string]float64` でデコードする（現行の `int` では数値型の想定外でデコード全体が失敗するため）。
-- `misskey_queue_length{queue,state}` を `ConstMetric`（gauge）で出力する。
+- レスポンスが JSON の `null` の場合は、失敗として扱う（空のオブジェクト `{}` は、キューが0件の成功として扱う）。
+- `misskey_queue_length{queue,state}` を `ConstMetric`（gauge）で出力する。すべてのメトリクスを組み立ててから送出し、途中でエラーになった場合は1つも出さない。
 
 ### 5.4 メトリクス
 
@@ -142,13 +144,14 @@ Prometheus の Exporter で標準的なスタックを使う。
 標準の `testing`、`httptest`、`prometheus/testutil` を使う。実装は TDD（テスト → 実装）で進める。
 
 - config: 引数のスライスと環境変数を与えて解釈できる形にし、必須の欠落（URL、API キー）、不正な URL、既定値、不正な `--misskey.timeout`、フラグと環境変数の優先順位を確認する。API キーは、環境変数のみ、ファイルのみ、末尾改行付きファイル、両方指定（エラー）、どちらもなし（エラー）、存在しないファイル、空のファイルを確認する
-- client: 成功、非 2xx、タイムアウト、不正な JSON、サイズ上限、Bearer ヘッダー、末尾 `/` の正規化
+- client: 成功、非 2xx、エラーボディの切り詰め、タイムアウト（呼び出し側の context で止まること）、不正な JSON、サイズ上限、Bearer ヘッダー、サブパス付き URL、接続エラーに API キーが含まれないこと
 - queue collector: 偽 Misskey サーバー相手に `testutil.CollectAndCompare`
-- exporter: 1つの collector が失敗しても他が出ること、collector ごとに success と duration が出ること
+- exporter: 1つの collector が失敗しても他が出ること、collector ごとに success と duration が出ること、タイムアウトで止まること、同時スクレイプが競合しないこと（`go test -race`）、失敗がログに出ること
+- `/metrics` のエンドツーエンド: Misskey が壊れていても 200 を返し、`misskey_scrape_collector_success` が 0 になり、キューの系列が残らないこと
 
 ## 8. ビルドと配布
 
-- Dockerfile の `go build` を、単一ファイル指定から `go build -o /misskey_exporter .` に変更する（複数ファイル化で現行の指定は壊れるため必須）。ベースイメージ、`EXPOSE 9100`、ENTRYPOINT は維持する。フラグは `docker run` の引数（CMD）で渡せる。
+- Dockerfile の `go build` を、単一ファイル指定から `go build -o /misskey_exporter .` に変更する（複数ファイル化で現行の指定は壊れるため必須）。builder イメージは `golang:1.26` に上げる（N2 参照）。実行用イメージ、`EXPOSE 9100`、ENTRYPOINT は維持する。フラグは `docker run` の引数（CMD）で渡せる。
 - `go mod tidy` で `// indirect` を整理し、5.1 の依存を追加する。
 - バイナリ配布（将来）: `CGO_ENABLED=0` でクロスコンパイルできる構成を保つ。バージョン情報は `prometheus/common/version` の変数に、ビルド時の `-ldflags` で埋め込める。リリース自動化（GoReleaser など）は今回はスコープ外。
 
