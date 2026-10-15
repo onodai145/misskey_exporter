@@ -101,6 +101,11 @@ func TestParseConfigInvalidURL(t *testing.T) {
 		"ftp://example.com",
 		"https://",
 		"https://user:pass@example.com",
+		// The API path is appended to the URL, so a query or fragment would
+		// end up in the middle of the request URL.
+		"https://example.com/?x=1",
+		"https://example.com/#frag",
+		"https://example.com/?",
 	}
 	for _, in := range tests {
 		t.Run(in, func(t *testing.T) {

@@ -174,3 +174,32 @@ func TestClientPostConnectionErrorDoesNotLeakKey(t *testing.T) {
 		t.Errorf("error %q leaks the API key", err)
 	}
 }
+
+// http:// to https:// redirects would turn the POST into a GET and fail with a
+// confusing 404. Report the redirect itself instead.
+func TestClientPostDoesNotFollowRedirects(t *testing.T) {
+	var followed bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/moved" {
+			followed = true
+			io.WriteString(w, `{}`)
+			return
+		}
+		http.Redirect(w, r, "/moved", http.StatusMovedPermanently)
+	}))
+	defer srv.Close()
+
+	var out map[string]any
+	err := newClient(srv.URL, testAPIKey).Post(context.Background(), "/api/x", &out)
+	if err == nil {
+		t.Fatal("Post succeeded, want error")
+	}
+	for _, want := range []string{"301", "redirect"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not contain %q", err, want)
+		}
+	}
+	if followed {
+		t.Error("the redirect was followed")
+	}
+}

@@ -46,7 +46,7 @@ go run . --misskey.url=https://example.com
 
 | 項目 | 指定方法 | 既定値 | 説明 |
 |---|---|---|---|
-| Misskey の URL（必須） | `--misskey.url` または `MISSKEY_URL` | なし | `http` または `https` の URL。末尾の `/` は無視されます。サブパス配下の Misskey も指定できます |
+| Misskey の URL（必須） | `--misskey.url` または `MISSKEY_URL` | なし | `http` または `https` の URL。末尾の `/` は無視されます。サブパス配下の Misskey も指定できますが、クエリとフラグメントは付けられません。リダイレクトは追従しないので、最終的な URL（通常は `https`）を指定してください |
 | アクセストークン（必須） | `MISSKEY_API_KEY`、または `--misskey.api-key-file` / `MISSKEY_API_KEY_FILE` でファイルのパス | なし | どちらか一方だけを指定します。両方指定するとエラーです。ファイルは起動時に1回だけ読むので、更新したら再起動してください |
 | タイムアウト | `--misskey.timeout` | `5s` | 1回のスクレイプで Misskey API を待つ時間。Prometheus の `scrape_interval` より短くしてください |
 | 待ち受けアドレス | `--web.listen-address` | `:9100` | |

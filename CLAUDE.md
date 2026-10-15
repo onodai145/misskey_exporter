@@ -33,8 +33,8 @@ Prometheus → /metrics → exporter.Collect()
 
 - `main.go`: 設定読み込み、`collectors` の登録、HTTP サーバー（exporter-toolkit の `web.ListenAndServe`）、SIGTERM/SIGINT での graceful shutdown。
 - `config.go`: kingpin によるフラグ + 環境変数の解釈と検証。アクセストークンは `MISSKEY_API_KEY` かファイル（`--misskey.api-key-file`）で渡し、値そのものをフラグでは受け取らない。検証エラーは `errors.Join` でまとめて返す。
-- `client.go`: Misskey API クライアント。自前のタイムアウトは持たず、呼び出し側の context で止める。エラーにトークンを含めない。
-- `exporter.go`: `collector` interface と、全 collector を束ねる `prometheus.Collector`。
+- `client.go`: Misskey API クライアント。自前のタイムアウトは持たず、呼び出し側の context で止める。エラーにトークンを含めない。リダイレクトは追従しない（POST が GET に変わるため）。
+- `exporter.go`: `collector` interface と、全 collector を束ねる `prometheus.Collector`。collector の panic は error に変換される（goroutine 上の panic でプロセスが落ちるのを防ぐ）。
 - `collector_queue.go`: `/api/admin/queue/stats` を `misskey_queue_length{queue,state}` にする。
 
 ### collector を追加する手順

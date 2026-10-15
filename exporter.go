@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -70,7 +71,7 @@ func (e *exporter) Collect(ch chan<- prometheus.Metric) {
 
 func (e *exporter) execute(ctx context.Context, c collector, ch chan<- prometheus.Metric) {
 	start := time.Now()
-	err := c.Update(ctx, e.client, ch)
+	err := e.update(ctx, c, ch)
 	duration := time.Since(start).Seconds()
 
 	success := 1.0
@@ -80,4 +81,15 @@ func (e *exporter) execute(ctx context.Context, c collector, ch chan<- prometheu
 	}
 	ch <- prometheus.MustNewConstMetric(scrapeDurationDesc, prometheus.GaugeValue, duration, c.Name())
 	ch <- prometheus.MustNewConstMetric(scrapeSuccessDesc, prometheus.GaugeValue, success, c.Name())
+}
+
+// update runs the collector and turns a panic into an error: a panic in a
+// goroutine started by Collect would otherwise crash the whole process.
+func (e *exporter) update(ctx context.Context, c collector, ch chan<- prometheus.Metric) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic: %v", r)
+		}
+	}()
+	return c.Update(ctx, e.client, ch)
 }

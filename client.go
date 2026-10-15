@@ -26,9 +26,13 @@ type client struct {
 
 func newClient(baseURL, apiKey string) *client {
 	return &client{
-		baseURL:          baseURL,
-		apiKey:           apiKey,
-		http:             &http.Client{},
+		baseURL: baseURL,
+		apiKey:  apiKey,
+		http: &http.Client{
+			// A followed redirect turns the POST into a GET and fails with a
+			// confusing status. Report the redirect itself instead.
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		},
 		maxResponseBytes: defaultMaxResponseBytes,
 	}
 }
@@ -51,7 +55,11 @@ func (c *client) Post(ctx context.Context, path string, out any) error {
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
-		return fmt.Errorf("request %s: unexpected status %d: %s", path, resp.StatusCode, bytes.TrimSpace(snippet))
+		hint := ""
+		if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+			hint = " (redirects are not followed; check the scheme and host of --misskey.url)"
+		}
+		return fmt.Errorf("request %s: unexpected status %d%s: %s", path, resp.StatusCode, hint, bytes.TrimSpace(snippet))
 	}
 
 	// Read one byte more than allowed to tell "exactly the limit" from "over".

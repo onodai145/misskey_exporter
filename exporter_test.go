@@ -140,3 +140,21 @@ func TestExporterConcurrentScrapes(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// A panic in a collector goroutine would otherwise take the whole process down.
+func TestExporterSurvivesPanickingCollector(t *testing.T) {
+	boom := fakeCollector{name: "boom", update: func(context.Context, chan<- prometheus.Metric) error {
+		panic("unexpected")
+	}}
+	exp := newTestExporter(time.Second, nil, boom, okCollector("ok"))
+
+	expected := `
+# HELP misskey_scrape_collector_success Whether the last scrape of a collector succeeded (1) or failed (0).
+# TYPE misskey_scrape_collector_success gauge
+misskey_scrape_collector_success{collector="boom"} 0
+misskey_scrape_collector_success{collector="ok"} 1
+`
+	if err := testutil.CollectAndCompare(exp, strings.NewReader(expected), "misskey_scrape_collector_success"); err != nil {
+		t.Error(err)
+	}
+}

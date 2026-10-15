@@ -78,7 +78,7 @@ type collector interface {
 }
 ```
 
-`exporter` が各 collector を並列に実行し、`Update` の戻り値から success と duration を出す。collector 同士は独立で、1つの失敗が他に影響しない。
+`exporter` が各 collector を並列に実行し、`Update` の戻り値から success と duration を出す。collector の panic は error に変換して `success=0` として扱い、プロセスは落とさない。collector 同士は独立で、1つの失敗が他に影響しない。
 
 ## 5. コンポーネント詳細
 
@@ -104,7 +104,7 @@ Prometheus の Exporter で標準的なスタックを使う。
 | バージョン | `--version` | 任意 | なし | |
 
 - 起動時に検証し、問題を報告して終了コード 1 で終了する。必須フラグの欠落は kingpin が報告し、API キーの欠落、不正な URL、`--misskey.timeout` が 0 以下の場合は検証処理がエラーにする。検証で見つかった問題は、最初の1件で止めずにまとめて報告する。
-- `--misskey.url` は、スキームが `http` / `https` で、ホストがあり、認証情報（`user:pass@`）を含まない URL だけを受け付ける。パスは許可する（サブパス配下のリバースプロキシ向け）。
+- `--misskey.url` は、スキームが `http` / `https` で、ホストがあり、認証情報（`user:pass@`）、クエリ、フラグメントを含まない URL だけを受け付ける。パスは許可する（サブパス配下のリバースプロキシ向け）。API のパスを URL の末尾に連結するため、クエリやフラグメントがあると URL が壊れる。
 - API キーの解決規則:
   - `MISSKEY_API_KEY` と API キーファイルの両方が指定された場合は、曖昧さを避けるためエラーにする（優先順位は設けない）。
   - どちらも指定されなかった場合もエラーにする。
@@ -117,6 +117,7 @@ Prometheus の Exporter で標準的なスタックを使う。
 - `Post(ctx, path, out)` は JSON ボディ `{}` を送り、`Authorization: Bearer` を付ける（現行の認証方式を維持）。
 - 2xx 以外はエラーとし、ステータスコードとボディ先頭 512 バイトを含める。
 - レスポンスボディは `io.LimitReader` で 10MB に制限する。
+- リダイレクトは追従しない。追従すると POST が GET に変わり、紛らわしいステータスで失敗するため。3xx は非 2xx として報告し、エラーに `--misskey.url` の確認を促す一文を付ける。
 - API キーはエラーメッセージに含めない。
 
 ### 5.3 queue collector

@@ -94,6 +94,10 @@ func normalizeBaseURL(raw string) (string, error) {
 	if u.User != nil {
 		return "", errors.New("invalid --misskey.url: must not contain credentials")
 	}
+	// The API path is appended to the URL, so these would end up in its middle.
+	if u.RawQuery != "" || u.ForceQuery || u.Fragment != "" {
+		return "", errors.New("invalid --misskey.url: must not contain a query or fragment")
+	}
 	return strings.TrimRight(u.String(), "/"), nil
 }
 
