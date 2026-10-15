@@ -27,7 +27,9 @@ chmod +x "$TMP/bin/gh"
 # A bare origin and a clone on main with one commit. Leaves the shell in the clone.
 setup() {
   rm -rf "$TMP/origin.git" "$TMP/work" "$TMP/other"
-  git init -q --bare "$TMP/origin.git"
+  # Name the branch explicitly: the default depends on init.defaultBranch, and
+  # a clone of an origin whose HEAD points to a missing branch has no HEAD.
+  git init -q --bare --initial-branch=main "$TMP/origin.git"
   git clone -q "$TMP/origin.git" "$TMP/work" 2>/dev/null
   cd "$TMP/work" || exit 1
   git config user.email t@example.com
