@@ -35,14 +35,19 @@ archives:
 changelog:
   use: github-native
 
+# Mark tags with a prerelease part (v0.2.0-rc.1) as a GitHub prerelease.
+release:
+  prerelease: auto
+
 dockers_v2:
   - id: misskey_exporter
     images:
       - ghcr.io/onodai145/misskey_exporter
     # {{ .Version }} has no leading "v", unlike the default {{ .Tag }}.
+    # "latest" is dropped for prerelease tags (v0.2.0-rc.1): an empty tag is ignored.
     tags:
       - "{{ .Version }}"
-      - latest
+      - "{{ if not .Prerelease }}latest{{ end }}"
     dockerfile: Dockerfile.release
     platforms:
       - linux/amd64

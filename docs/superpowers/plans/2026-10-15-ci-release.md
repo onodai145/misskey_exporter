@@ -24,7 +24,7 @@
   | `goreleaser/goreleaser-action` | v7.2.3 | `f06c13b6b1a9625abc9e6e439d9c05a8f2190e94` |
 
 - GoReleaser 本体は `v2.18.3` に固定する（アクションの `version` 入力に指定。Dependabot の対象外なので、更新は手動）。
-- Go のバージョンは `go.mod` から取る（`setup-go` の `go-version-file: go.mod`）。
+- Go のバージョンは、`setup-go` の `go-version: "1.26"` と `check-latest: true` で、1.26 系の最新を使う（最終レビューで変更。`go.mod` は `go 1.26.0` とパッチ版まで指定しているので、`go-version-file` だと 1.26.0 がそのまま入る）。公開用の `release.yml` は `cache: false`。
 - 権限は最小にする。`ci.yml` は `contents: read` だけ。`release.yml` は `contents: write` と `packages: write` だけ。
 - イメージ名は `ghcr.io/onodai145/misskey_exporter`。イメージのタグは `{{ .Version }}`（`v` なし、例 `0.2.0`）と `latest`。
 - ビルドは `CGO_ENABLED=0`、`-trimpath`、linux の amd64 と arm64 だけ。ldflags は、既定値を置き換えて `version.Version`、`version.Revision`、`version.BuildDate`（パッケージは `github.com/prometheus/common/version`）を明示する。
@@ -43,6 +43,14 @@
 3. checkout が浅くてタグが見えない。バージョンが `0.0.0-...` や `unknown` になること。`fetch-depth: 0` があり、公開物の `--version` が `0.2.0` になること（Task 3 Step 3、Task 4 Step 5）。
 4. arm64 のイメージが作れない（QEMU 上の `RUN apk`、`COPY $TARGETPLATFORM/...` のパス）。amd64 はローカルの手作りコンテキストで、amd64 と arm64 の両方は CI の snapshot ビルドで確認すること（Task 2 Step 8、Task 4 Step 2）。
 5. GHCR のパッケージが初回の push で private になる。プレリリースタグ（`v0.2.0-rc.1`）で `latest` や prerelease の扱いが想定と違う。公開状態を確認し、プレリリースタグは検証するまで使わないこと（Task 4 Step 6）。
+
+## 最終レビューでの変更
+
+Task 1〜3 の実装後、ブランチ全体のレビューを受けて、次を変えた（Task 1 と 3 の YAML は、この変更を反映した内容が最終版）。
+
+- `ci.yml` と `release.yml`: `go-version-file: go.mod` を `go-version: "1.26"` と `check-latest: true` に変更。`release.yml` には `cache: false` を追加。
+- `.goreleaser.yaml`: `release: prerelease: auto` を追加。イメージのタグ `latest` を `{{ if not .Prerelease }}latest{{ end }}` に変更。
+- SBOM の attestation は、GoReleaser の既定のまま付ける（仕様書 3.3 に明記）。
 
 ---
 
@@ -575,7 +583,7 @@ docker manifest inspect ghcr.io/onodai145/misskey_exporter:0.2.0 | grep -E '"arc
 Expected:
 - アセットに `misskey_exporter_0.2.0_linux_amd64.tar.gz`、`misskey_exporter_0.2.0_linux_arm64.tar.gz`、`misskey_exporter_0.2.0_checksums.txt` がある。`isPrerelease` は `false`。
 - `--version` が `misskey_exporter, version 0.2.0 (...)`（Review Focus 3）。
-- マニフェストに `amd64` と `arm64` の両方がある。
+- マニフェストに `amd64` と `arm64` の両方がある。SBOM と provenance の attestation のエントリ（`unknown/unknown`）も入っていてよい。
 
 - [ ] **Step 6: GHCR のパッケージの公開状態を確かめる**
 

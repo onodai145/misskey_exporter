@@ -43,7 +43,7 @@
 
 ### 3.3 スコープ外
 
-- 署名（cosign）、SBOM、deb/rpm、Homebrew。
+- 署名（cosign）、deb/rpm、Homebrew。SBOM と provenance の attestation は、設定で足すことはしない。ただし GoReleaser の `dockers_v2` が既定で SBOM を付け、buildx も既定で provenance を付けるので、公開されるイメージのマニフェストには attestation のエントリ（`unknown/unknown`）も入る。
 - darwin と windows のバイナリ。必要になったら GoReleaser の `goos` に足す。
 - イメージの非 root 化とベースイメージの固定。今の `Dockerfile` と同じ `alpine:latest` のまま移す。
 - `LICENSE` ファイルの追加。
@@ -68,7 +68,7 @@
 
 - 起動: `pull_request`、`main` への `push`。
 - 権限: `contents: read`。
-- 手順: checkout → `setup-go`（`go-version-file: go.mod`）→ `go vet ./...` → `gofmt -l .` が空であることの確認 → `go test -race ./...`。
+- 手順: checkout → `setup-go`（`go-version: "1.26"`、`check-latest: true`）→ `go vet ./...` → `gofmt -l .` が空であることの確認 → `go test -race ./...`。
 
 ### 5.2 `release.yml`
 
@@ -76,7 +76,7 @@
 - 権限: `contents: write`、`packages: write`。
 - 手順:
   1. `fetch-depth: 0` で checkout（GoReleaser がタグと履歴を必要とする）。
-  2. `setup-go`（`go-version-file: go.mod`）。
+  2. `setup-go`（`go-version: "1.26"`、`check-latest: true`、`cache: false`）。`go.mod` は `go 1.26.0` と、パッチ版まで指定している。`go-version-file` を使うと、その `1.26.0` がそのまま入り、標準ライブラリのセキュリティ修正が入らない（setup-go の公式ドキュメントによる）。そこで、1.26 系の最新を使う。公開用のジョブでは、キャッシュを復元しない。
   3. `go vet ./...` と `go test -race ./...`。
   4. QEMU と buildx の用意。`Dockerfile.release` の `RUN apk add` が arm64 側で実行されるため、エミュレーションが要る。
   5. `GITHUB_TOKEN` で GHCR にログイン。
@@ -98,7 +98,8 @@
 - `changelog`: `use: github-native`（マージコミット運用なので、コミット一覧ではなく PR タイトルを使う）。
 - `dockers_v2`:
   - `images: ghcr.io/onodai145/misskey_exporter`。
-  - `tags: "{{ .Version }}"` と `latest`。
+  - `tags`: `{{ .Version }}` と `{{ if not .Prerelease }}latest{{ end }}`（プレリリースタグでは空になり、無視される）。
+- `release`: `prerelease: auto`（`v0.2.0-rc.1` のようなプレリリース部分のあるタグを、GitHub の prerelease にする）。
   - `platforms: linux/amd64, linux/arm64`。
   - `dockerfile: Dockerfile.release`。
   - `labels` に `org.opencontainers.image.source`（リポジトリとの紐付け）。
@@ -143,7 +144,7 @@ ENTRYPOINT ["/misskey_exporter"]
 
 - `ldflags` を上書きすると既定値が置き換わること、`-X` を `main` 以外のパッケージに使えること。
 - `dockers_v2` の `dockerfile` と `labels` のオプション名。
-- プレリリースタグ（`v0.2.0-rc.1` など）のとき、Release が prerelease になるか、`latest` が動くか。
+- プレリリースタグ（`v0.2.0-rc.1` など）のとき、Release が prerelease になり、`latest` が動かないか。GoReleaser のソース（`release.go`、`docker/v2/docker.go`）の読み取りでは、そうなる。`--snapshot` はバージョンなしのビルドで、実際のタグを見ないので、ローカルでは確かめられない。実際のプレリリースタグで確かめるまでは、使わない。
 - GHCR パッケージの初回の可視性。
 - 各アクションの SHA とバージョンは、実装時に `gh api` で調べて固定する。
 

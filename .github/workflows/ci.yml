@@ -17,7 +17,10 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: go.mod
+          # go.mod says "go 1.26.0", which setup-go would install as-is. Track the
+          # latest 1.26.x so that standard library security fixes are included.
+          go-version: "1.26"
+          check-latest: true
       - name: Vet
         run: go vet ./...
       - name: Check formatting
