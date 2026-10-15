@@ -1,7 +1,7 @@
 # misskey_exporter リライト 設計仕様
 
 日付: 2026-10-15
-ステータス: レビュー待ち
+ステータス: レビュー待ち（非機能要件を改訂: 互換性は必須でない、外部依存は増やしてよい、配布は当面 Docker）
 
 ## 1. 目的
 
@@ -29,13 +29,14 @@ Misskey の管理 API から取得した情報を Prometheus 形式で公開す�
 - F2: メトリクスはスクレイプ時に取得する（バックグラウンドポーリングは廃止）。
 - F3: collector ごとに成功/失敗と所要時間を公開する。
 - F4: 新しい API の追加は、collector の実装と `main.go` への登録だけで済む。
+- F5: 設定はコマンドラインフラグと環境変数で受け取り、TLS と Basic 認証は exporter-toolkit の `--web.config.file` で設定できる。
 
 ### 3.2 非機能要件
 
-- N1: 環境変数名、既定ポート `:9100`、`misskey_queue_length` の名前とラベル、Grafana ダッシュボードの互換性を維持する。
-- N2: 配布は引き続き Docker（`golang:1.24` → `alpine`）。
-- N3: 新しい外部依存を増やさない（標準ライブラリと `client_golang` 同梱パッケージのみ）。
-- N4: API キーをログやエラーメッセージに出さない。
+- N1: 既存との互換性は必須ではない。ただし、変える理由がないもの（環境変数名 `MISSKEY_URL` / `MISSKEY_API_KEY`、既定ポート `:9100`、`misskey_queue_length{queue,state}`、Grafana ダッシュボード）は維持する。
+- N2: 配布は当面 Docker（`golang:1.24` → `alpine`）。バイナリ配布は将来（任意のタイミング）で、今回は実装しないが、妨げない設計にする（cgo なし、`--version` を持つ）。
+- N3: 外部依存を増やしてよい。Prometheus の Exporter で標準的なライブラリを採用する（5.1 参照）。
+- N4: API キーをログやエラーメッセージに出さない。コマンドライン引数でも受け取らない（プロセス一覧に出るため）。
 
 ### 3.3 スコープ外
 
@@ -49,7 +50,7 @@ Misskey の管理 API から取得した情報を Prometheus 形式で公開す�
 | ファイル | 責務 |
 |---|---|
 | `main.go` | 設定の読み込み、client と collector の組み立て、HTTP サーバー起動、SIGTERM/SIGINT での graceful shutdown |
-| `config.go` | 環境変数の読み込みと検証 |
+| `config.go` | コマンドラインフラグと環境変数の解釈と検証 |
 | `client.go` | Misskey API クライアント |
 | `exporter.go` | 複数の collector をまとめて実行する `prometheus.Collector` |
 | `collector_queue.go` | `admin/queue/stats` 用 collector |
@@ -83,15 +84,26 @@ type collector interface {
 
 ### 5.1 config
 
-| 環境変数 | 必須 | 既定値 | 説明 |
-|---|---|---|---|
-| `MISSKEY_URL` | 必須 | なし | Misskey の URL（`http` または `https`）。末尾の `/` は除く |
-| `MISSKEY_API_KEY` | 必須 | なし | アクセストークン |
-| `LISTEN_ADDR` | 任意 | `:9100` | 待ち受けアドレス |
-| `REQUEST_TIMEOUT` | 任意 | `5s` | 1回の API リクエストのタイムアウト（`time.ParseDuration` 形式）。スクレイプ間隔より短くすること |
+Prometheus の Exporter で標準的なスタックを使う。
 
-- 起動時に検証し、問題をまとめて報告して終了コード 1 で終了する。
-- 不正な URL、不正な `REQUEST_TIMEOUT`（パース不能、0 以下）もエラーにする。
+| 用途 | ライブラリ |
+|---|---|
+| フラグ解釈 | `github.com/alecthomas/kingpin/v2` |
+| HTTP サーバー（TLS、Basic 認証、systemd ソケット） | `github.com/prometheus/exporter-toolkit/web`（`web/kingpinflag`） |
+| ログ（`log/slog` ベース、`--log.level` / `--log.format`） | `github.com/prometheus/common/promslog`（`promslog/flag`） |
+| `--version` | `github.com/prometheus/common/version` |
+
+| 項目 | 指定方法 | 必須 | 既定値 | 説明 |
+|---|---|---|---|---|
+| Misskey の URL | `--misskey.url` または環境変数 `MISSKEY_URL` | 必須 | なし | `http` または `https` の URL。末尾の `/` は除く |
+| API キー | 環境変数 `MISSKEY_API_KEY` のみ | 必須 | なし | アクセストークン。フラグでは受け取らない |
+| リクエストタイムアウト | `--misskey.timeout` | 任意 | `5s` | 1回の API リクエストのタイムアウト。スクレイプ間隔より短くすること |
+| 待ち受けアドレス | `--web.listen-address` | 任意 | `:9100` | exporter-toolkit のフラグ |
+| TLS / Basic 認証 | `--web.config.file` | 任意 | なし | exporter-toolkit のフラグ |
+| ログ | `--log.level`, `--log.format` | 任意 | `info`, `logfmt` | promslog のフラグ |
+| バージョン | `--version` | 任意 | なし | |
+
+- 起動時に検証し、問題を報告して終了コード 1 で終了する。必須フラグの欠落は kingpin が報告し、API キーの欠落、不正な URL、`--misskey.timeout` が 0 以下の場合は検証処理がエラーにする。
 
 ### 5.2 client
 
@@ -116,7 +128,7 @@ type collector interface {
 
 ## 6. エラー処理
 
-- collector が失敗した場合、`log/slog` で collector 名とエラーを標準エラー出力に記録し、`success=0` と `duration` だけを出す。メトリクス本体は出さない（古い値や 0 を残さない）。
+- collector が失敗した場合、promslog の logger（`log/slog`）で collector 名とエラーを標準エラー出力に記録し、`success=0` と `duration` だけを出す。メトリクス本体は出さない（古い値や 0 を残さない）。
 - `/metrics` 自体は常に 200 を返す。失敗は `misskey_scrape_collector_success` で表現する。
 - 起動時の設定エラーのみ、即終了する。
 
@@ -124,28 +136,30 @@ type collector interface {
 
 標準の `testing`、`httptest`、`prometheus/testutil` を使う。実装は TDD（テスト → 実装）で進める。
 
-- config: 必須の欠落（複数まとめて報告）、不正な URL、既定値、不正な `REQUEST_TIMEOUT`
+- config: 引数のスライスと環境変数を与えて解釈できる形にし、必須の欠落（URL、API キー）、不正な URL、既定値、不正な `--misskey.timeout`、フラグと環境変数の優先順位を確認する
 - client: 成功、非 2xx、タイムアウト、不正な JSON、サイズ上限、Bearer ヘッダー、末尾 `/` の正規化
 - queue collector: 偽 Misskey サーバー相手に `testutil.CollectAndCompare`
 - exporter: 1つの collector が失敗しても他が出ること、collector ごとに success と duration が出ること
 
 ## 8. ビルドと配布
 
-- Dockerfile の `go build` を、単一ファイル指定から `go build -o /misskey_exporter .` に変更する（複数ファイル化で現行の指定は壊れるため必須）。ベースイメージ、`EXPOSE 9100`、ENTRYPOINT は維持する。
-- `go mod tidy` で `// indirect` を整理する。
+- Dockerfile の `go build` を、単一ファイル指定から `go build -o /misskey_exporter .` に変更する（複数ファイル化で現行の指定は壊れるため必須）。ベースイメージ、`EXPOSE 9100`、ENTRYPOINT は維持する。フラグは `docker run` の引数（CMD）で渡せる。
+- `go mod tidy` で `// indirect` を整理し、5.1 の依存を追加する。
+- バイナリ配布（将来）: `CGO_ENABLED=0` でクロスコンパイルできる構成を保つ。バージョン情報は `prometheus/common/version` の変数に、ビルド時の `-ldflags` で埋め込める。リリース自動化（GoReleaser など）は今回はスコープ外。
 
 ## 9. ドキュメント
 
-- `README.md`: 日本語で書き直す。概要、起動方法、環境変数の表、メトリクス一覧、Prometheus 設定、必要な API 権限（v2025.3.1 では `絵文字を見る` も必要という注記を維持）。
+- `README.md`: 日本語で書き直す。概要、起動方法、フラグと環境変数の表、メトリクス一覧、Prometheus 設定、必要な API 権限（v2025.3.1 では `絵文字を見る` も必要という注記を維持）。
 - `CLAUDE.md`: 新しいファイル構成、`go test ./...`（単体テスト実行例を含む）、collector の追加手順に合わせて書き直す。
 
 ## 10. 互換性
 
-- 維持: 環境変数名、既定ポート、`misskey_queue_length{queue,state}`、Grafana ダッシュボード。
+- 互換性は必須ではないが、既存の利用者が影響を受けないよう、環境変数名（`MISSKEY_URL`、`MISSKEY_API_KEY`）、既定ポート、`misskey_queue_length{queue,state}`、Grafana ダッシュボードは維持する。メトリクス名を見直したが、変える理由がなかった。
 - 変更: 取得失敗時に古い値が残らなくなる、`misskey_scrape_collector_*` が増える、スクレイプ時取得になる（Misskey への負荷はスクレイプ間隔に比例する）。
 
 ## 11. 完了条件
 
 - `go build ./...`、`go vet ./...`、`go test ./...` が通る。
 - `docker build` が通る。
+- `--version` と `--help` が動く。
 - 実 Misskey に対して `MISSKEY_URL` と `MISSKEY_API_KEY` を渡して `go run .` を実行し、`curl localhost:9100/metrics` で `misskey_queue_length` と `misskey_scrape_collector_success 1` を確認する（実 Misskey は利用者の環境で確認する）。
