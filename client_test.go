@@ -8,9 +8,44 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/prometheus/common/version"
 )
 
 const testAPIKey = "secret-token-123"
+
+func TestClientPostUserAgent(t *testing.T) {
+	tests := []struct {
+		name    string
+		version string
+		want    string
+	}{
+		{"with version", "1.2.3", "misskey_exporter/1.2.3"},
+		{"without version", "", "misskey_exporter/unknown"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			old := version.Version
+			version.Version = tt.version
+			t.Cleanup(func() { version.Version = old })
+
+			var gotUA string
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotUA = r.Header.Get("User-Agent")
+				io.WriteString(w, `{}`)
+			}))
+			defer srv.Close()
+
+			var out map[string]any
+			if err := newClient(srv.URL, testAPIKey).Post(context.Background(), "/api/x", &out); err != nil {
+				t.Fatalf("Post: %v", err)
+			}
+			if gotUA != tt.want {
+				t.Errorf("User-Agent = %q, want %q", gotUA, tt.want)
+			}
+		})
+	}
+}
 
 func TestClientPostSuccess(t *testing.T) {
 	var gotMethod, gotPath, gotAuth, gotContentType, gotBody string
