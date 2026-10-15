@@ -36,7 +36,7 @@ Misskey の管理 API から取得した情報を Prometheus 形式で公開す�
 - N1: 既存との互換性は必須ではない。ただし、変える理由がないもの（環境変数名 `MISSKEY_URL` / `MISSKEY_API_KEY`、既定ポート `:9100`、`misskey_queue_length{queue,state}`、Grafana ダッシュボード）は維持する。
 - N2: 配布は当面 Docker（`golang:1.24` → `alpine`）。バイナリ配布は将来（任意のタイミング）で、今回は実装しないが、妨げない設計にする（cgo なし、`--version` を持つ）。
 - N3: 外部依存を増やしてよい。Prometheus の Exporter で標準的なライブラリを採用する（5.1 参照）。
-- N4: API キーをログやエラーメッセージに出さない。コマンドライン引数でも受け取らない（プロセス一覧に出るため）。
+- N4: API キーをログやエラーメッセージに出さない。値そのものをコマンドライン引数では受け取らない（プロセス一覧に出るため）。環境変数に加えて、Docker Secrets や Kubernetes Secret のようなファイル経由でも渡せる。
 
 ### 3.3 スコープ外
 
@@ -96,7 +96,7 @@ Prometheus の Exporter で標準的なスタックを使う。
 | 項目 | 指定方法 | 必須 | 既定値 | 説明 |
 |---|---|---|---|---|
 | Misskey の URL | `--misskey.url` または環境変数 `MISSKEY_URL` | 必須 | なし | `http` または `https` の URL。末尾の `/` は除く |
-| API キー | 環境変数 `MISSKEY_API_KEY` のみ | 必須 | なし | アクセストークン。フラグでは受け取らない |
+| API キー | 環境変数 `MISSKEY_API_KEY`、または `--misskey.api-key-file`（環境変数 `MISSKEY_API_KEY_FILE` でも指定可）でファイルのパス | どちらか一方が必須 | なし | アクセストークン。値そのものをフラグでは受け取らない |
 | リクエストタイムアウト | `--misskey.timeout` | 任意 | `5s` | 1回の API リクエストのタイムアウト。スクレイプ間隔より短くすること |
 | 待ち受けアドレス | `--web.listen-address` | 任意 | `:9100` | exporter-toolkit のフラグ |
 | TLS / Basic 認証 | `--web.config.file` | 任意 | なし | exporter-toolkit のフラグ |
@@ -104,6 +104,11 @@ Prometheus の Exporter で標準的なスタックを使う。
 | バージョン | `--version` | 任意 | なし | |
 
 - 起動時に検証し、問題を報告して終了コード 1 で終了する。必須フラグの欠落は kingpin が報告し、API キーの欠落、不正な URL、`--misskey.timeout` が 0 以下の場合は検証処理がエラーにする。
+- API キーの解決規則:
+  - `MISSKEY_API_KEY` と API キーファイルの両方が指定された場合は、曖昧さを避けるためエラーにする（優先順位は設けない）。
+  - どちらも指定されなかった場合もエラーにする。
+  - ファイルは起動時に1回だけ読み、前後の空白と改行を除く。読めない場合や、空の場合はエラーにする（ローテーションへの追従は対象外。更新時は再起動する）。
+  - エラーメッセージには、ファイルのパスは含めてよいが、内容は含めない。
 
 ### 5.2 client
 
@@ -136,7 +141,7 @@ Prometheus の Exporter で標準的なスタックを使う。
 
 標準の `testing`、`httptest`、`prometheus/testutil` を使う。実装は TDD（テスト → 実装）で進める。
 
-- config: 引数のスライスと環境変数を与えて解釈できる形にし、必須の欠落（URL、API キー）、不正な URL、既定値、不正な `--misskey.timeout`、フラグと環境変数の優先順位を確認する
+- config: 引数のスライスと環境変数を与えて解釈できる形にし、必須の欠落（URL、API キー）、不正な URL、既定値、不正な `--misskey.timeout`、フラグと環境変数の優先順位を確認する。API キーは、環境変数のみ、ファイルのみ、末尾改行付きファイル、両方指定（エラー）、どちらもなし（エラー）、存在しないファイル、空のファイルを確認する
 - client: 成功、非 2xx、タイムアウト、不正な JSON、サイズ上限、Bearer ヘッダー、末尾 `/` の正規化
 - queue collector: 偽 Misskey サーバー相手に `testutil.CollectAndCompare`
 - exporter: 1つの collector が失敗しても他が出ること、collector ごとに success と duration が出ること
@@ -149,7 +154,7 @@ Prometheus の Exporter で標準的なスタックを使う。
 
 ## 9. ドキュメント
 
-- `README.md`: 日本語で書き直す。概要、起動方法、フラグと環境変数の表、メトリクス一覧、Prometheus 設定、必要な API 権限（v2025.3.1 では `絵文字を見る` も必要という注記を維持）。
+- `README.md`: 日本語で書き直す。概要、起動方法（環境変数とファイル指定の例）、フラグと環境変数の表、メトリクス一覧、Prometheus 設定、必要な API 権限（v2025.3.1 では `絵文字を見る` も必要という注記を維持）。
 - `CLAUDE.md`: 新しいファイル構成、`go test ./...`（単体テスト実行例を含む）、collector の追加手順に合わせて書き直す。
 
 ## 10. 互換性
