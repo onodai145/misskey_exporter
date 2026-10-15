@@ -29,3 +29,4 @@ go.work
 
 # GoReleaser output
 dist/
+/licenses/

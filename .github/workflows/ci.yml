@@ -35,3 +35,9 @@ jobs:
         run: go test -race ./...
       - name: Test scripts
         run: bash scripts/release_test.sh
+      - name: Test license scripts
+        run: bash scripts/licenses_test.sh
+      - name: Install go-licenses
+        run: go install github.com/google/go-licenses/v2@v2.0.1
+      - name: Check licenses
+        run: scripts/licenses.sh check
