@@ -60,7 +60,7 @@
 
 ## 5. スクリプト（`scripts/licenses.sh`）
 
-bash。`set -euo pipefail`。`go-licenses` が PATH にないときは、`$(go env GOPATH)/bin` を PATH に足す。
+bash。`set -euo pipefail`。どこから起動されても、リポジトリのルート（スクリプトの1つ上）に移動してから動く（`./...`、`LICENSE`、`<dir>` はルートからの相対。サブディレクトリから起動すると、`go-licenses` が何も検査せずに成功してしまうため）。`go-licenses` が PATH にないときは、`$(go env GOPATH)/bin` を PATH に足す。
 
 - `scripts/licenses.sh check`:
   `go-licenses check ./... --ignore misskey_exporter --allowed_licenses=MIT,Apache-2.0,BSD-3-Clause` を実行する。許可していない種類があれば、`go-licenses` の終了コードのまま失敗する。

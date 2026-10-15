@@ -16,7 +16,7 @@ go test -race -run TestClientPostSuccess ./...      # 単一テスト
 MISSKEY_URL=https://example.com MISSKEY_API_KEY=... go run .
 curl localhost:9100/metrics                         # 動作確認
 docker build -t misskey_exporter .                  # golang:1.26 → alpine のマルチステージ
-goreleaser release --snapshot --clean --skip=docker  # リリースの成果物をローカルで試す（dist/ に出る。イメージは buildx が要るので除く）
+goreleaser release --snapshot --clean --skip=before,docker  # リリースの成果物をローカルで試す（dist/ に出る。before は GOROOT/LICENSE が、docker は buildx が要るので除く。licenses/ は手作りで置く: なければライセンスなしのアーカイブができ、前回のが残っていれば古い内容が入る）
 bash scripts/release_test.sh                      # scripts/release.sh のテスト（偽の gh と一時的な git リポジトリを使う。CI でも動く）
 bash scripts/licenses_test.sh                     # scripts/licenses.sh のテスト（偽の go と go-licenses を使う。CI でも動く）
 scripts/licenses.sh check                         # 依存のライセンスが許可リストの範囲か（要 go-licenses: go install github.com/google/go-licenses/v2@v2.0.1）

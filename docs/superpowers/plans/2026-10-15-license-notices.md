@@ -34,6 +34,14 @@
 5. イメージに `/licenses` が入っていない、または `COPY` のパスが違う。snapshot のビルドが失敗し、リリース後に `ls /licenses` で確認できること（Task 4 Step 3、Step 6）。
 6. `go install` した `go-licenses` が PATH にない（GoReleaser の `before.hooks` から呼ばれる場合）。`GOPATH/bin` を足して見つけること（Task 1 のテスト `finds go-licenses in GOPATH/bin when it is not on PATH`）。
 
+## 最終レビューでの変更
+
+Task 1〜3 の実装後、ブランチ全体のレビューを受けて、次を変えた（Task 1 のスクリプトとテストは、この変更を反映した内容が最終版）。
+
+- `scripts/licenses.sh`: 冒頭で、リポジトリのルートに移動する（サブディレクトリから起動すると、`check` が何も検査せずに成功したため）。テストは、スクリプトを偽のリポジトリの `scripts/` に置き、サブディレクトリから起動するケースを足した（13 ケース）。
+- `CLAUDE.md`: ローカルの snapshot の手順を `--skip=before,docker` に変え、手作りの `licenses/` が要ることを注記した。
+- `README.md`: 「v0.2.0 より後のリリース」に限ることを明記した。
+
 ---
 
 ## ファイル構成

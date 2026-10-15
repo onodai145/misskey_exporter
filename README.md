@@ -121,4 +121,4 @@ go test -race ./...
 
 [MIT License](LICENSE)
 
-リリースのアーカイブと Docker イメージ（`/licenses/`）には、依存ライブラリと Go のライセンスが、フォルダ `licenses/` に入っています。
+v0.2.0 より後のリリースのアーカイブと Docker イメージ（`/licenses/`）には、依存ライブラリと Go のライセンスが、フォルダ `licenses/` に入っています（v0.2.0 には入っていません）。

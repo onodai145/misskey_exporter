@@ -33,6 +33,7 @@ EOF
 cat > "$BIN/go-licenses" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >> "$FAKE_GL_LOG"
+echo "$PWD" >> "$FAKE_GL_LOG.cwd"
 for arg in "$@"; do
   case "$arg" in
     --save_path=*)
@@ -48,16 +49,18 @@ chmod +x "$BIN/go" "$BIN/go-licenses"
 # A fake repository (with a LICENSE), a fake GOROOT (with a LICENSE) and an
 # empty call log. Leaves the shell outside the repository.
 setup() {
-  rm -rf "$TMP/repo" "$TMP/goroot" "$TMP/gopath" "$TMP/nogl" "$TMP/log"
-  mkdir -p "$TMP/repo" "$TMP/goroot" "$TMP/gopath/bin"
+  rm -rf "$TMP/repo" "$TMP/goroot" "$TMP/gopath" "$TMP/nogl" "$TMP/log" "$TMP/log.cwd"
+  mkdir -p "$TMP/repo/scripts" "$TMP/repo/sub" "$TMP/goroot" "$TMP/gopath/bin"
+  cp "$SCRIPT" "$TMP/repo/scripts/licenses.sh"
   echo "repo license" > "$TMP/repo/LICENSE"
   echo "go license" > "$TMP/goroot/LICENSE"
   : > "$TMP/log"
 }
 
-# run_licenses [args...]: sets out and rc. go-licenses is found on PATH.
+# run_licenses [args...]: sets out and rc. go-licenses is found on PATH. The
+# script starts in RUN_DIR (the fake repository by default).
 run_licenses() {
-  out=$(cd "$TMP/repo" && env PATH="$BIN:$SYSPATH" FAKE_GOROOT="$TMP/goroot" FAKE_GOPATH="$TMP/gopath" FAKE_GL_LOG="$TMP/log" bash "$SCRIPT" "$@" 2>&1)
+  out=$(cd "${RUN_DIR:-$TMP/repo}" && env PATH="$BIN:$SYSPATH" FAKE_GOROOT="$TMP/goroot" FAKE_GOPATH="$TMP/gopath" FAKE_GL_LOG="$TMP/log" bash "$TMP/repo/scripts/licenses.sh" "$@" 2>&1)
   rc=$?
 }
 
@@ -109,7 +112,7 @@ result "save fails without the Go license, before touching anything" $?
 setup
 mkdir -p "$TMP/nogl"
 ln -s "$BIN/go" "$TMP/nogl/go"
-out=$(cd "$TMP/repo" && env PATH="$TMP/nogl:$SYSPATH" FAKE_GOROOT="$TMP/goroot" FAKE_GOPATH="$TMP/gopath" FAKE_GL_LOG="$TMP/log" bash "$SCRIPT" check 2>&1)
+out=$(cd "$TMP/repo" && env PATH="$TMP/nogl:$SYSPATH" FAKE_GOROOT="$TMP/goroot" FAKE_GOPATH="$TMP/gopath" FAKE_GL_LOG="$TMP/log" bash "$TMP/repo/scripts/licenses.sh" check 2>&1)
 rc=$?
 [ "$rc" -ne 0 ] && grep -q "go-licenses not found" <<<"$out"
 result "fails with a hint when go-licenses is not installed" $?
@@ -118,10 +121,21 @@ setup
 mkdir -p "$TMP/nogl"
 ln -s "$BIN/go" "$TMP/nogl/go"
 cp "$BIN/go-licenses" "$TMP/gopath/bin/go-licenses"
-out=$(cd "$TMP/repo" && env PATH="$TMP/nogl:$SYSPATH" FAKE_GOROOT="$TMP/goroot" FAKE_GOPATH="$TMP/gopath" FAKE_GL_LOG="$TMP/log" bash "$SCRIPT" check 2>&1)
+out=$(cd "$TMP/repo" && env PATH="$TMP/nogl:$SYSPATH" FAKE_GOROOT="$TMP/goroot" FAKE_GOPATH="$TMP/gopath" FAKE_GL_LOG="$TMP/log" bash "$TMP/repo/scripts/licenses.sh" check 2>&1)
 rc=$?
 [ "$rc" -eq 0 ] && grep -q "^check " "$TMP/log"
 result "finds go-licenses in GOPATH/bin when it is not on PATH" $?
+
+# --- working directory
+setup
+RUN_DIR="$TMP/repo/sub" run_licenses check
+[ "$rc" -eq 0 ] && [ "$(cat "$TMP/log.cwd")" = "$TMP/repo" ]
+result "check runs go-licenses from the repository root, even when started in a subdirectory" $?
+
+setup
+RUN_DIR="$TMP/repo/sub" run_licenses save out
+[ "$rc" -eq 0 ] && [ -f "$TMP/repo/out/go/LICENSE" ] && [ -f "$TMP/repo/out/example.com/mod/LICENSE" ] && [ ! -e "$TMP/repo/sub/out" ]
+result "save started in a subdirectory writes under the repository root" $?
 
 # --- usage
 setup

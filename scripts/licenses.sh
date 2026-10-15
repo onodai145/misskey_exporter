@@ -8,6 +8,11 @@
 # Needs go-licenses: go install github.com/google/go-licenses/v2@v2.0.1
 set -euo pipefail
 
+# Work from the repository root, wherever the script is started: ./... and
+# LICENSE below are relative to it, and so is the <dir> argument. Started in a
+# subdirectory, go-licenses would otherwise check nothing and still succeed.
+cd "$(dirname "$0")/.."
+
 # The licenses that dependencies may have. To allow another one, add it here.
 ALLOWED=MIT,Apache-2.0,BSD-3-Clause
 
