@@ -29,7 +29,7 @@ jobs:
             echo "::error::Tag $GITHUB_REF_NAME ($GITHUB_SHA) is not on main"
             exit 1
           fi
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           # go.mod says "go 1.26.0", which setup-go would install as-is. Track the
           # latest 1.26.x so that standard library security fixes are included.
